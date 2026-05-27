@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compte à rebours</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Share Tech Mono', monospace;
+      overflow: hidden;
+    }
+
+    /* Subtle scanline overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.18) 2px,
+        rgba(0,0,0,0.18) 4px
+      );
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Vignette */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.75) 100%);
+      pointer-events: none;
+      z-index: 9;
+    }
+
+    .wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 48px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .labels {
+      display: flex;
+      gap: clamp(12px, 4vw, 60px);
+    }
+
+    .label {
+      width: clamp(80px, 18vw, 220px);
+      text-align: center;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: clamp(0.55rem, 1.2vw, 0.85rem);
+      letter-spacing: 0.25em;
+      color: #7a0000;
+      text-transform: uppercase;
+    }
+
+    .display {
+      display: flex;
+      align-items: center;
+      gap: clamp(8px, 2vw, 24px);
+    }
+
+    .unit {
+      position: relative;
+      width: clamp(80px, 18vw, 220px);
+      text-align: center;
+    }
+
+    /* Ghost (inactive segments) */
+    .ghost {
+      font-size: clamp(3.5rem, 12vw, 10rem);
+      color: #1a0000;
+      user-select: none;
+      line-height: 1;
+      letter-spacing: 0.05em;
+    }
+
+    /* Active digit layer */
+    .digit {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(3.5rem, 12vw, 10rem);
+      color: #ff0000;
+      line-height: 1;
+      letter-spacing: 0.05em;
+
+      /* LED glow */
+      text-shadow:
+        0 0 6px #ff0000,
+        0 0 14px #ff0000,
+        0 0 30px #cc0000,
+        0 0 60px #880000;
+    }
+
+    .sep {
+      font-size: clamp(3rem, 10vw, 8.5rem);
+      color: #ff0000;
+      line-height: 1;
+      margin-bottom: clamp(24px, 4vw, 48px);
+      text-shadow:
+        0 0 6px #ff0000,
+        0 0 14px #ff0000,
+        0 0 30px #cc0000;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.25; }
+    }
+
+    /* Finished state */
+    .finished .digit {
+      color: #ff4444;
+      animation: pulse 0.6s ease-in-out infinite alternate;
+    }
+    @keyframes pulse {
+      from { text-shadow: 0 0 6px #ff0000, 0 0 20px #ff0000, 0 0 40px #cc0000; }
+      to   { text-shadow: 0 0 20px #ff4444, 0 0 50px #ff2222, 0 0 80px #ff0000; }
+    }
+
+    .message {
+      font-size: clamp(1rem, 3vw, 2rem);
+      color: #ff0000;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      text-shadow: 0 0 10px #ff0000, 0 0 30px #cc0000;
+      display: none;
+      animation: pulse 0.6s ease-in-out infinite alternate;
+    }
+    .finished .message { display: block; }
+  </style>
+</head>
+<body>
+  <div class="wrapper" id="wrapper">
+    <div class="display" id="display">
+      <div class="unit">
+        <div class="ghost">88</div>
+        <div class="digit" id="d-days">00</div>
+      </div>
+      <div class="sep">:</div>
+      <div class="unit">
+        <div class="ghost">88</div>
+        <div class="digit" id="d-hours">00</div>
+      </div>
+      <div class="sep">:</div>
+      <div class="unit">
+        <div class="ghost">88</div>
+        <div class="digit" id="d-minutes">00</div>
+      </div>
+      <div class="sep">:</div>
+      <div class="unit">
+        <div class="ghost">88</div>
+        <div class="digit" id="d-seconds">00</div>
+      </div>
+    </div>
+
+    <div class="message" id="message">— C'est l'heure ! —</div>
+  </div>
+
+  <script>
+    const TARGET = new Date('2026-05-30T10:00:00');
+
+    const pad = n => String(Math.max(0, n)).padStart(2, '0');
+
+    const elDays    = document.getElementById('d-days');
+    const elHours   = document.getElementById('d-hours');
+    const elMinutes = document.getElementById('d-minutes');
+    const elSeconds = document.getElementById('d-seconds');
+    const wrapper   = document.getElementById('wrapper');
+
+    function tick() {
+      const now  = Date.now();
+      const diff = TARGET - now;
+
+      if (diff <= 0) {
+        elDays.textContent    = '00';
+        elHours.textContent   = '00';
+        elMinutes.textContent = '00';
+        elSeconds.textContent = '00';
+        wrapper.classList.add('finished');
+        return;
+      }
+
+      const totalSec = Math.floor(diff / 1000);
+      const days    = Math.floor(totalSec / 86400);
+      const hours   = Math.floor((totalSec % 86400) / 3600);
+      const minutes = Math.floor((totalSec % 3600) / 60);
+      const seconds = totalSec % 60;
+
+      elDays.textContent    = pad(days);
+      elHours.textContent   = pad(hours);
+      elMinutes.textContent = pad(minutes);
+      elSeconds.textContent = pad(seconds);
+    }
+
+    tick();
+    setInterval(tick, 1000);
+  </script>
+</body>
+</html>
